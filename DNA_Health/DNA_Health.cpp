@@ -27,56 +27,37 @@ public:
 class Node
 {
 public:
-    char c ='0';
-    std::map<char, Node*> gene_map;
+    std::map<char,Node*> gene_map;
     std::vector<Gene> genes = {};
-    Node* self_ptr = this;
-    Node(char _c)
-    {
-        c = _c;
-    }
-    Node()
-    {
+};
 
+class DNA_Strand
+{
+public:
+    int from_index;
+    int to_index;
+    string DNA;
+    DNA_Strand(vector<string> t_case)
+    {
+        from_index = stoi(t_case[0]);
+        to_index = stoi(t_case[1]);
+        DNA = t_case[2];
     }
 };
 
 
-
-int dna_health(vector<string> genes, vector<int> health, vector<vector<string>> first_last)
+void create_tree(Node* root, vector<Node*> &all_nodes,const vector<string> &genes, const vector<int> &health)
 {
-    for (int i = 0; i < genes.size(); i++)
-    {
-        //std::cout << "Gene " << i << " " << genes[i] << "\n";
-    }
-    for (int i = 0; i < health.size(); i++)
-    {
-        //std::cout << "Health " << i << " " << health[i] << "\n";
-    }
-
-    for (int i = 0; i < first_last.size(); i++)
-    {
-        //std::cout << "First_Last Index:" << i << " First:" << first_last[i][0] << " Last: " << first_last[i][1] << " Dna:" << first_last[i][2] << "\n";
-    }
-    vector<Node*> all_nodes;
-
-    Node *root = new Node;
-
-    all_nodes.push_back(root);
-    Node* active_Node = root;
-
+    
     for (int g_i = 0; g_i < genes.size(); g_i++)
     {
+        Node* active_Node = root;
         for (int c = 0; c < genes[g_i].size(); c++)
         {
-            if (c == 0)
-            {
-                active_Node = root;
-            }
             if (active_Node->gene_map.find(genes[g_i][c]) == active_Node->gene_map.end())
             {
                 //Key Not Found Option
-                Node* tmp_node = new Node(genes[g_i][c]);
+                Node* tmp_node = new Node;
                 all_nodes.push_back(tmp_node);
                 active_Node->gene_map[genes[g_i][c]] = all_nodes.back();
             }
@@ -88,58 +69,71 @@ int dna_health(vector<string> genes, vector<int> health, vector<vector<string>> 
             }
         }
     }
+}
+
+void progress_node(vector<Node*> &active_nodes,const int &node_ind,const DNA_Strand& t_case,long long &health, vector<int> nodes_to_delete, const char &c)
+{
+    Node* active_Node = active_nodes[node_ind];
+    if (active_Node->gene_map.find(c) != active_Node->gene_map.end())
+    {
+        active_nodes[node_ind] = active_Node->gene_map[c];
+        Node* node = active_nodes[node_ind];
+        for (const auto &gene: node->genes)
+        {
+            if (gene.index >= t_case.from_index && gene.index <= t_case.to_index)
+            {
+                health += gene.value;
+            }
+            else if (gene.index > t_case.to_index)
+            {
+                break;
+            }
+        }
+    }
+    else
+    {
+        nodes_to_delete.push_back(node_ind);
+    }
+}
+
+void delete_nodes(const vector<int> &nodes_to_delete, vector<Node*> &active_nodes)
+{
+    if (nodes_to_delete.size() > 0)
+    {
+        for (int i = nodes_to_delete.size() - 1; i >= 0; i--)
+        {
+            active_nodes.erase(active_nodes.begin() + nodes_to_delete[i]);
+        }
+    }
+}
+
+void dna_health(vector<string> genes, vector<int> health, vector<vector<string>> first_last)
+{
+    vector<Node*> all_nodes;
+    Node* root = new Node;
+    all_nodes.push_back(root);
+    create_tree(root,all_nodes,genes,health);
+
     long long min_health =  std::numeric_limits<long long>::max();
     long long max_health = 0;
-    for (int t_case = 0; t_case < first_last.size(); t_case++)
+    for (auto const& t_case : first_last)
     {
-        vector<Node*> Active_Nodes;
-        int  from = stoi(first_last[t_case][0]);
-        int  to = stoi(first_last[t_case][1]);
-        string DNA = first_last[t_case][2];
+        vector<Node*> active_nodes;
+        DNA_Strand t_case(t_case);
         long long health = 0;
-        for (int c = 0; c < DNA.size(); c++)
+        for (auto const& c : t_case.DNA)
         {
             vector<int> nodes_to_delete;
-            Active_Nodes.push_back(root);
-            for (int node = 0; node < Active_Nodes.size(); node++)
+            active_nodes.push_back(root);
+            for (int node = 0; node < active_nodes.size(); node++)
             {
-                active_Node = Active_Nodes[node];
-                if (active_Node->gene_map.find(DNA[c]) != active_Node->gene_map.end())
-                {
-                    Active_Nodes[node] = active_Node->gene_map[DNA[c]];
-                    for (int gene = 0; gene < Active_Nodes[node]->genes.size();gene++)
-                    {
-                        if (Active_Nodes[node]->genes[gene].index>=from && Active_Nodes[node]->genes[gene].index<=to)
-                        {
-                            health += Active_Nodes[node]->genes[gene].value;
-                        }
-                        else if (Active_Nodes[node]->genes[gene].index > to)
-                        {
-                            break;
-                        }
-
-                    }
-                }
-                else
-                {
-                    nodes_to_delete.push_back(node);
-                }
-
+                progress_node(active_nodes, node, t_case, health, nodes_to_delete,c);
             }
-            if (nodes_to_delete.size() > 0)
-            {
-                for (int i = nodes_to_delete.size() - 1; i >= 0; i--)
-                {
-                    Active_Nodes.erase(Active_Nodes.begin() + nodes_to_delete[i]);
-                }
-            }
-        
+            delete_nodes(nodes_to_delete, active_nodes);
         }
-        //std::cout << health << "\n";
         min_health = min(health, min_health);
         max_health = max(health, max_health);
-        
-
+       
     }
     std::cout << "Max health is " << max_health << "\n";
     std::cout << "Min health is " << min_health << "\n";
@@ -149,8 +143,6 @@ int dna_health(vector<string> genes, vector<int> health, vector<vector<string>> 
     {
         delete all_nodes[i];
     }
-
-    return 0;
 }
 
 int main()
