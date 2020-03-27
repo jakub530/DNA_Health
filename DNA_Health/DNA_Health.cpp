@@ -6,16 +6,35 @@
 #include <iostream>
 #include <fstream>
 
+#define _CRTDBG_MAP_ALLOC
+#include <stdlib.h>
+#include <crtdbg.h>
 
 using namespace std;
-
 vector<string> split_string(string);
+
+class Data
+{
+public:
+    int index =0;
+    int value =0;
+    string gene="";
+    Data( int _index,  int _value,  string _gene)
+    {
+        index = _index;
+        value = _value;
+        gene = _gene;
+    }
+    Data()
+    {
+    }
+};
 
 class Gene
 {
 public:
     int index;
-    long long value;
+    int value;
 
     Gene(int _index, long long _value)
     {
@@ -34,106 +53,97 @@ public:
 class DNA_Strand
 {
 public:
-    int from_index;
-    int to_index;
+    int start;
+    int end;
     string DNA;
     DNA_Strand(vector<string> t_case)
     {
-        from_index = stoi(t_case[0]);
-        to_index = stoi(t_case[1]);
+        start = stoi(t_case[0]);
+        end = stoi(t_case[1]);
         DNA = t_case[2];
     }
 };
 
 
-void create_tree(Node* root, vector<Node*> &all_nodes,const vector<string> &genes, const vector<int> &health)
-{
-    
-    for (int g_i = 0; g_i < genes.size(); g_i++)
+void create_tree(Node* root, vector<Node*> &all_nodes,const vector<Data> &input_data)
+{ 
+    for (const auto &data:input_data)
     {
         Node* active_Node = root;
-        for (int c = 0; c < genes[g_i].size(); c++)
+        for (int c = 0; c < data.gene.size(); c++)
         {
-            if (active_Node->gene_map.find(genes[g_i][c]) == active_Node->gene_map.end())
+            if (active_Node->gene_map.find(data.gene[c]) == active_Node->gene_map.end())
             {
                 //Key Not Found Option
-                Node* tmp_node = new Node;
-                all_nodes.push_back(tmp_node);
-                active_Node->gene_map[genes[g_i][c]] = all_nodes.back();
+                Node* new_node = new Node;
+                all_nodes.push_back(new_node);
+                active_Node->gene_map[data.gene[c]] = all_nodes.back();
             }
-            active_Node = active_Node->gene_map[genes[g_i][c]];
-            if (c == genes[g_i].size() - 1)
+            active_Node = active_Node->gene_map[data.gene[c]];
+            if (c == data.gene.size() - 1)
             {
-                Gene tmp_gene(g_i, health[g_i]);
+                Gene tmp_gene(data.index,data.value);
                 active_Node->genes.push_back(tmp_gene);
             }
         }
     }
 }
 
-void progress_node(vector<Node*> &active_nodes,const int &node_ind,const DNA_Strand& t_case,long long &health, vector<int> nodes_to_delete, const char &c)
+void process_data(vector<int> &health, vector<string> &genes, vector<Data> &input_data)
 {
-    Node* active_Node = active_nodes[node_ind];
-    if (active_Node->gene_map.find(c) != active_Node->gene_map.end())
+    for (int i = 0; i < health.size(); i++)
     {
-        active_nodes[node_ind] = active_Node->gene_map[c];
-        Node* node = active_nodes[node_ind];
-        for (const auto &gene: node->genes)
-        {
-            if (gene.index >= t_case.from_index && gene.index <= t_case.to_index)
-            {
-                health += gene.value;
-            }
-            else if (gene.index > t_case.to_index)
-            {
-                break;
-            }
-        }
-    }
-    else
-    {
-        nodes_to_delete.push_back(node_ind);
-    }
-}
-
-void delete_nodes(const vector<int> &nodes_to_delete, vector<Node*> &active_nodes)
-{
-    if (nodes_to_delete.size() > 0)
-    {
-        for (int i = nodes_to_delete.size() - 1; i >= 0; i--)
-        {
-            active_nodes.erase(active_nodes.begin() + nodes_to_delete[i]);
-        }
+        Data tmp_data(i, health[i], genes[i]);
+        input_data[i] = tmp_data;
     }
 }
 
 void dna_health(vector<string> genes, vector<int> health, vector<vector<string>> first_last)
 {
     vector<Node*> all_nodes;
+    vector<Data> input_data(genes.size());
+    process_data(health,genes,input_data);
     Node* root = new Node;
     all_nodes.push_back(root);
-    create_tree(root,all_nodes,genes,health);
+    create_tree(root,all_nodes,input_data);
 
     long long min_health =  std::numeric_limits<long long>::max();
     long long max_health = 0;
     for (auto const& t_case : first_last)
     {
         vector<Node*> active_nodes;
-        DNA_Strand t_case(t_case);
+        DNA_Strand strand(t_case);
         long long health = 0;
-        for (auto const& c : t_case.DNA)
+        for (auto const& c : strand.DNA)
         {
             vector<int> nodes_to_delete;
             active_nodes.push_back(root);
-            for (int node = 0; node < active_nodes.size(); node++)
+            vector<Node*>::iterator it = active_nodes.begin();
+            while (it != active_nodes.end())
             {
-                progress_node(active_nodes, node, t_case, health, nodes_to_delete,c);
+                Node* active_Node = *it;
+                if (active_Node->gene_map.find(c) != active_Node->gene_map.end())
+                {
+                    *it = active_Node->gene_map[c];
+                    Node* node = *it;
+                    for (const auto &gene: node->genes)
+                    {
+                        health = (gene.index >= strand.start && gene.index <= strand.end) ? health + gene.value : health;
+                        if (gene.index > strand.end)
+                        {
+                            break;
+                        }
+                    }
+                    ++it;
+                }
+                else
+                {
+                    it = active_nodes.erase(it);
+                }
             }
-            delete_nodes(nodes_to_delete, active_nodes);
         }
         min_health = min(health, min_health);
-        max_health = max(health, max_health);
-       
+        max_health = max(health, max_health);    
     }
     std::cout << "Max health is " << max_health << "\n";
     std::cout << "Min health is " << min_health << "\n";
@@ -143,6 +153,13 @@ void dna_health(vector<string> genes, vector<int> health, vector<vector<string>>
     {
         delete all_nodes[i];
     }
+
+    std::cout << " " << "\n";
+    std::cout << " " << "\n";
+    std::cout << " " << "\n";
+    std::cout << " " << "\n";
+    std::cout << " " << "\n";
+    std::cout << " " << "\n";
 }
 
 int main()
@@ -201,7 +218,7 @@ int main()
         string d = firstLastd[2];
     }
     dna_health(genes, health, first_last);
-
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
     return 0;
 }
 
