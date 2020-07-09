@@ -51,20 +51,6 @@ public:
     std::vector<Gene> genes = {};
 };
 
-class DNA_Strand
-{
-public:
-    int start{0}, end{0};
-    string DNA;
-    DNA_Strand(vector<string> t_case)
-    {
-        start = stoi(t_case[0]);
-        end = stoi(t_case[1]);
-        DNA = t_case[2];
-    }
-};
-
-
 void create_tree(Node* root,const vector<Data> &input_data)
 { 
     for (const auto &data:input_data)
@@ -90,20 +76,22 @@ void process_data(vector<int> &health, vector<string> &genes, vector<Data> &inpu
     }
 }
 
-void delete_node(Node* node)
+void delete_nodes(Node* node)
 {
     for(map<char, Node*>::iterator it= node->gene_map.begin(); it != node->gene_map.end();it++)
     {
-        delete_node(it->second);
+        delete_nodes(it->second);
     }
     delete node;
 }
 
-long long find_health(DNA_Strand strand, Node* root)
+long long find_health(vector<string> t_case, Node* root)
 {
     long long health{0};  
     vector<Node*> active_nodes;
-    for (auto const& c : strand.DNA)
+    Gene g_start = Gene(stoi(t_case[0]), 0);
+    Gene g_end =   Gene(stoi(t_case[1]), 0);
+    for (auto const& c : t_case[2])
     {
         vector<Node*> new_active_nodes;
         new_active_nodes.reserve(active_nodes.size()+1);
@@ -114,8 +102,8 @@ long long find_health(DNA_Strand strand, Node* root)
             {
                 new_active_nodes.push_back(active_node->gene_map[c]);
                 std::vector<Gene>::iterator start, end, it;
-                start = std::lower_bound (new_active_nodes.back()->genes.begin(), new_active_nodes.back()->genes.end(), Gene(strand.start,0),gene_comp); //          ^
-                end  =  std::upper_bound(start, new_active_nodes.back()->genes.end(), Gene(strand.end, 0), gene_comp); //  
+                start = std::lower_bound (new_active_nodes.back()->genes.begin(), new_active_nodes.back()->genes.end(), g_start,gene_comp);
+                end  =  std::upper_bound(start, new_active_nodes.back()->genes.end(), g_end, gene_comp); 
                 for (it = start; it < end; it++)
                 {
                     health += (*it).value;
@@ -139,14 +127,13 @@ void dna_health(vector<string> genes, vector<int> health, vector<vector<string>>
     long long max_health = 0;
     for (auto const& t_case : first_last)
     {
-        DNA_Strand strand(t_case);
-        long long health = find_health(strand, root);
+        long long health = find_health(t_case, root);
         min_health = min(health, min_health);
         max_health = max(health, max_health);   
     }
     std::cout << "Max health is " << max_health << "\n";
     std::cout << "Min health is " << min_health << "\n";
-    delete_node(root);
+    delete_nodes(root);
 }
 
 int main()
